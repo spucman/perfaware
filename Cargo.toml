@@ -1,0 +1,17 @@
+[package]
+name = "perfaware"
+version = "0.1.0"
+authors = ["Stefan Puchmann <spucman.dev@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+clap = "=4.4.18"
+
+[profile.dev]
+debug = true
+
+[profile.test]
+debug = 0
+
+[profile.release]
+panic = 'abort'
