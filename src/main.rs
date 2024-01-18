@@ -1,6 +1,8 @@
 use clap::{arg, value_parser, Command};
 use std::path::PathBuf;
 
+mod cpu;
+
 fn main() {
     let r_matches = cli().get_matches();
 
