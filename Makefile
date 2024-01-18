@@ -21,7 +21,7 @@ lint:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 cpu: build
-	target/debug/perfaware cpu filename
+	target/debug/perfaware cpu test-data/listing_0037_single_register_mov
 	
 
 .PHONY: build test docs style-check lint

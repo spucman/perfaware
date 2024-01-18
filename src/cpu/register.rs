@@ -1,22 +1,5 @@
 use std::fmt::{Display, Formatter, Result};
 
-// AL W=0 / AX W=1
-const REG_FIELD_A: u8 = 0b000;
-// CL W=0 / CX W=1
-const REG_FIELD_C: u8 = 0b001;
-// DL W=0 / DX W=1
-const REG_FIELD_D: u8 = 0b010;
-// BL W=0 / BX W=1
-const REG_FIELD_B: u8 = 0b011;
-// AH W=0 / SP W=1
-const REG_FIELD_AH: u8 = 0b100;
-// CH W=0 / BP W=1
-const REG_FIELD_CH: u8 = 0b101;
-// DH W=0 / SI W=1
-const REG_FIELD_DH: u8 = 0b110;
-// BH W=0 / DI W=1
-const REG_FIELD_BH: u8 = 0b111;
-
 enum Register {
     AL,
     AX,
@@ -36,49 +19,122 @@ enum Register {
     DI,
 }
 
+impl Register {
+    fn from(item: u8, w: bool) -> Register {
+        let reg = if w { item | 0b1000 } else { item };
+        match reg {
+            0b0000 => Register::AL,
+            0b1000 => Register::AX,
+            0b0001 => Register::CL,
+            0b1001 => Register::CX,
+            0b0010 => Register::DL,
+            0b1010 => Register::DX,
+            0b0011 => Register::BL,
+            0b1011 => Register::BX,
+            0b0100 => Register::AH,
+            0b1100 => Register::SP,
+            0b0101 => Register::CH,
+            0b1101 => Register::BP,
+            0b0110 => Register::DH,
+            0b1110 => Register::SI,
+            0b0111 => Register::BH,
+            0b1111 => Register::DI,
+            _ => panic!("register not found"),
+        }
+    }
+}
+
 impl Display for Register {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
-            AL => write!(f, "AL"),
-            AX => write!(f, "AX"),
-            CL => write!(f, "CL"),
-            CX => write!(f, "CX"),
-            DL => write!(f, "DL"),
-            DX => write!(f, "DX"),
-            BL => write!(f, "BL"),
-            BX => write!(f, "BX"),
-            AH => write!(f, "AH"),
-            SP => write!(f, "SP"),
-            CH => write!(f, "CH"),
-            BP => write!(f, "BP"),
-            DH => write!(f, "DH"),
-            SI => write!(f, "SI"),
-            BH => write!(f, "BH"),
-            DI => write!(f, "DI"),
+            Register::AL => write!(f, "al"),
+            Register::AX => write!(f, "ax"),
+            Register::CL => write!(f, "cl"),
+            Register::CX => write!(f, "cx"),
+            Register::DL => write!(f, "dl"),
+            Register::DX => write!(f, "dx"),
+            Register::BL => write!(f, "bl"),
+            Register::BX => write!(f, "bx"),
+            Register::AH => write!(f, "ah"),
+            Register::SP => write!(f, "sp"),
+            Register::CH => write!(f, "ch"),
+            Register::BP => write!(f, "bp"),
+            Register::DH => write!(f, "dh"),
+            Register::SI => write!(f, "si"),
+            Register::BH => write!(f, "bh"),
+            Register::DI => write!(f, "di"),
         }
     }
 }
 
 enum Instruction {
-    MOV,
+    Mov,
+    Nan,
+}
+
+impl From<u8> for Instruction {
+    fn from(item: u8) -> Instruction {
+        if item == 0b100010 {
+            Instruction::Mov
+        } else {
+            Instruction::Nan
+        }
+    }
 }
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
-            MOV => write!(f, "MOV"),
+            Instruction::Mov => write!(f, "mov"),
+            Instruction::Nan => write!(f, "n/a"),
         }
     }
 }
 
-struct Command {
+pub struct Command {
     instruction: Instruction,
     source: Register,
     destination: Register,
 }
 
+impl Default for Command {
+    fn default() -> Self {
+        Command {
+            instruction: Instruction::Nan,
+            source: Register::AX,
+            destination: Register::AX,
+        }
+    }
+}
+
 impl From<&[u8]> for Command {
-    fn from(item: &[u8]) -> Command {}
+    fn from(item: &[u8]) -> Command {
+        if item.len() != 2 {
+            return Command::default();
+        }
+        let first = item[0];
+        let instr = Instruction::from(first >> 2);
+        let to_reg = (first & 0b00000010) == 0b00000010;
+        let w = (first & 0b00000001) == 0b00000001;
+
+        let second = item[1];
+        if (second & 0b11000000) != 0b11000000 {
+            println!("Only Register Mode is allowed right now");
+            return Command::default();
+        }
+
+        let (dest, source) = if to_reg {
+            ((second & 0b00111000) >> 3, second & 0b00000111)
+        } else {
+            (second & 0b00000111, (second & 0b00111000) >> 3)
+        };
+
+        Command {
+            instruction: instr,
+            source: Register::from(source, w),
+            destination: Register::from(dest, w),
+        }
+    }
 }
 
 impl Display for Command {
@@ -90,3 +146,6 @@ impl Display for Command {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {}

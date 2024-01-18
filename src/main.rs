@@ -10,6 +10,7 @@ fn main() {
         Some(("cpu", matches)) => {
             if let Some(file) = matches.get_one::<PathBuf>("file") {
                 println!("{:?}", file);
+                cpu::load_and_encode_instsructions(file.to_str().unwrap());
             } else {
                 println!("no filepath found");
             }
