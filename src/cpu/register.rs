@@ -67,17 +67,34 @@ impl Display for Register {
     }
 }
 
+#[derive(PartialEq)]
+enum MovVariant {
+    ToFromReg,
+    ImmediateToStorage,
+    ImmediateToReg,
+    MemToAcc,
+    AccToMem,
+}
+
+#[derive(PartialEq)]
 enum Instruction {
-    Mov,
+    Mov(MovVariant),
     Nan,
 }
 
 impl From<u8> for Instruction {
     fn from(item: u8) -> Instruction {
-        if item == 0b100010 {
-            Instruction::Mov
-        } else {
-            Instruction::Nan
+        match item << 4 {
+            0b1011 => Instruction::Mov(MovVariant::ImmediateToReg),
+            _ => match item << 2 {
+                0b100010 => Instruction::Mov(MovVariant::ToFromReg),
+                _ => match item << 1 {
+                    0b1100011 => Instruction::Mov(MovVariant::ImmediateToStorage),
+                    0b1010000 => Instruction::Mov(MovVariant::MemToAcc),
+                    0b1010001 => Instruction::Mov(MovVariant::AccToMem),
+                    _ => Instruction::Nan,
+                },
+            },
         }
     }
 }
@@ -85,26 +102,45 @@ impl From<u8> for Instruction {
 impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
-            Instruction::Mov => write!(f, "mov"),
+            Instruction::Mov(_) => write!(f, "mov"),
             Instruction::Nan => write!(f, "n/a"),
         }
     }
 }
 
 struct Memory {
-    registers: Option<[Register]>,
-    displacements: Option<[u8]>,
+    registers: Option<Vec<Register>>,
+    displacements: Option<(u8, Option<u8>)>,
 }
 
-impl Display for Memory{
+impl Display for Memory {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let reg = match self.registers {
-            Some(v) => v.join(" + "),
-            None => ""
-        };
-
-        match (self.registers, self.displacements){
-            Some(r), Some(d) => write!("{} + {}", r.join(" + "), u16::from_str_radix(src, radix) ),
+        match (self.registers, self.displacements) {
+            (Some(r), Some((dh, dl))) => write!(
+                f,
+                "{} + {}",
+                r.iter()
+                    .map(|v| v.to_string())
+                    .reduce(|acc, s| format!("{} + {}", acc, s))
+                    .unwrap_or_default(),
+                dl.map(|v| ((dh as u16) << 8) | (v as u16))
+                    .unwrap_or(dh as u16)
+            ),
+            (Some(r), None) => write!(
+                f,
+                "{}",
+                r.iter()
+                    .map(|v| v.to_string())
+                    .reduce(|acc, s| format!("{} + {}", acc, s))
+                    .unwrap_or_default()
+            ),
+            (None, Some((dh, dl))) => write!(
+                f,
+                "{}",
+                dl.map(|v| ((dh as u16) << 8) | (v as u16))
+                    .unwrap_or(dh as u16)
+            ),
+            (None, None) => write!(f, "should not happen"),
         }
     }
 }
@@ -112,7 +148,22 @@ impl Display for Memory{
 enum Storage {
     Mem(Memory),
     Reg(Register),
-    Data(u8, u8),
+    Data(u8, Option<u8>),
+}
+
+impl Display for Storage {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            Storage::Mem(v) => v.fmt(f),
+            Storage::Reg(v) => v.fmt(f),
+            Storage::Data(dh, dl) => write!(
+                f,
+                "{}",
+                dl.map(|v| ((*dh as u16) << 8) | (v as u16))
+                    .unwrap_or(*dh as u16)
+            ),
+        }
+    }
 }
 
 pub struct Command {
@@ -125,17 +176,35 @@ impl Default for Command {
     fn default() -> Self {
         Command {
             instruction: Instruction::Nan,
-            source: Register::AX,
-            destination: Register::AX,
+            source: Storage::Reg(Register::AX),
+            destination: Storage::Reg(Register::AX),
         }
     }
 }
 
+enum CmdParsingState {
+    First,
+    Hi,
+    Lo,
+}
+
 impl From<&[u8]> for Command {
-    fn from(items: &[u8]) -> Command {
-        if items.len() != 2 {
-            return Command::default();
+    fn from(items: &[u8]) -> Vec<Command> {
+        let mut res = Vec::new();
+
+        let mut state = CmdParsingState::First;
+        let mut cur_instr = Instruction::Nan;
+        for item in items {
+            match state {
+                First => {
+                    if cur_instr != Instruction::Nan {
+                        //TODO create command here
+                    }
+                    cur_instr = Instruction::from(*item);
+                }
+            }
         }
+
         let first = items[0];
         let instr = Instruction::from(first >> 2);
         let to_reg = (first & 0b00000010) == 0b00000010;
@@ -144,7 +213,7 @@ impl From<&[u8]> for Command {
         let second = items[1];
         if (second & 0b11000000) != 0b11000000 {
             println!("Only Register Mode is allowed right now");
-            return Command::default();
+            return res;
         }
 
         let (dest, source) = if to_reg {
@@ -157,7 +226,9 @@ impl From<&[u8]> for Command {
             instruction: instr,
             source: Register::from_reg(source, w),
             destination: Register::from_reg(dest, w),
-        }
+        };
+
+        res
     }
 }
 
