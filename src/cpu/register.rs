@@ -20,7 +20,7 @@ enum Register {
 }
 
 impl Register {
-    fn from(item: u8, w: bool) -> Register {
+    fn from_reg(item: u8, w: bool) -> Register {
         let reg = if w { item | 0b1000 } else { item };
         match reg {
             0b0000 => Register::AL,
@@ -91,10 +91,34 @@ impl Display for Instruction {
     }
 }
 
+struct Memory {
+    registers: Option<[Register]>,
+    displacements: Option<[u8]>,
+}
+
+impl Display for Memory{
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let reg = match self.registers {
+            Some(v) => v.join(" + "),
+            None => ""
+        };
+
+        match (self.registers, self.displacements){
+            Some(r), Some(d) => write!("{} + {}", r.join(" + "), u16::from_str_radix(src, radix) ),
+        }
+    }
+}
+
+enum Storage {
+    Mem(Memory),
+    Reg(Register),
+    Data(u8, u8),
+}
+
 pub struct Command {
     instruction: Instruction,
-    source: Register,
-    destination: Register,
+    source: Storage,
+    destination: Storage,
 }
 
 impl Default for Command {
@@ -108,16 +132,16 @@ impl Default for Command {
 }
 
 impl From<&[u8]> for Command {
-    fn from(item: &[u8]) -> Command {
-        if item.len() != 2 {
+    fn from(items: &[u8]) -> Command {
+        if items.len() != 2 {
             return Command::default();
         }
-        let first = item[0];
+        let first = items[0];
         let instr = Instruction::from(first >> 2);
         let to_reg = (first & 0b00000010) == 0b00000010;
         let w = (first & 0b00000001) == 0b00000001;
 
-        let second = item[1];
+        let second = items[1];
         if (second & 0b11000000) != 0b11000000 {
             println!("Only Register Mode is allowed right now");
             return Command::default();
@@ -131,8 +155,8 @@ impl From<&[u8]> for Command {
 
         Command {
             instruction: instr,
-            source: Register::from(source, w),
-            destination: Register::from(dest, w),
+            source: Register::from_reg(source, w),
+            destination: Register::from_reg(dest, w),
         }
     }
 }
