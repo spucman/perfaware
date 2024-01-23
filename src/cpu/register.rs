@@ -201,6 +201,18 @@ impl From<&[u8]> for Command {
                         //TODO create command here
                     }
                     cur_instr = Instruction::from(*item);
+                    match cur_instr {
+                        Instruction::Mov(m) => match m {
+                            MovVariant::AccToMem | MovVariant::MemToAcc => {}
+                            MovVariant::ToFromReg => {}
+                            MovVariant::ImmediateToReg => {}
+                            MovVariant::ImmediateToStorage => {}
+                        },
+                        Instruction::Nan => {
+                            println!("Invalid instruction found");
+                            return Vec::default();
+                        }
+                    }
                 }
             }
         }
