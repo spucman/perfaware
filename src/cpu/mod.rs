@@ -1,7 +1,8 @@
-use register::Command;
+use crate::cpu::command::Command;
 use std::fs;
 
-mod register;
+mod command;
+mod storage;
 
 const CPU_BITS: usize = 16;
 
@@ -21,7 +22,7 @@ pub fn load_and_encode_instsructions(file: &str) {
         return;
     }
 
-    for arr in content.chunks(array_len_per_cmd) {
-        println!("{}", Command::from(arr));
+    for cmd in Command::from(&content) {
+        println!("{}", cmd);
     }
 }
