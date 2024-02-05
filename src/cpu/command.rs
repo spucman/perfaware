@@ -155,6 +155,7 @@ impl Command {
                     if cur_cmd.instruction != Instruction::Nan {
                         res.push(cur_cmd);
                         cur_cmd = Command::default();
+                        mem = Memory::defaul();
                     }
                     cur_cmd.instruction = Instruction::from(*item);
                     match cur_cmd.instruction {
@@ -214,6 +215,20 @@ impl Command {
                         }
                         MovVariant::ImmediateToStorage => {
                             mode = Mode::from(item >> 6);
+                            let storage = match mode {
+                                Mode::Reg => {
+                                    state = CmdParsingState::Data8;
+                                    Storage::Reg(Register::from_reg(item & 0b00000111, w))
+                                }
+                                Mode::Mem8BitDisplacement
+                                | Mode::Mem16BitDisplacement
+                                | Mode::MemNoDisplacement => {
+                                    mem = Command::get_mem_registers(*item, mode);
+                                    state = CmdParsingState::Hi;
+                                    Storage::Mem(mem)
+                                }
+                            };
+                            cur_cmd.destination = storage;
                         }
                         _ => {
                             println!(
@@ -226,6 +241,24 @@ impl Command {
                     Instruction::Nan => {
                         println!("Invalid instruction found");
                         return Vec::default();
+                    }
+                },
+                CmdParsingState::Lo => match cur_cmd.instruction {
+                    Instruction::Mov(v) => match v {
+                        MovVariant::MemToAcc | MovVariant::AccToMem => {
+                            mem = Memory {
+                                registers: None,
+                                displacements: Some((item, None)),
+                            };
+                            mem
+                        }
+                        MovVariant::ToFromReg => {}
+                        MovVariant::ImmediateToStorage => {}
+                        _ => {}
+                    },
+                    Instruction::Nan => {
+                        println!("Invalid instruction found");
+                        return Vec::default;
                     }
                 },
             }
