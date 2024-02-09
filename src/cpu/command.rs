@@ -148,21 +148,33 @@ impl Command {
         let mut d = false;
         let mut mode: Mode;
         let mut mem: Memory;
+        let mut reset = false;
 
         for item in items {
             match state {
                 First => {
                     if cur_cmd.instruction != Instruction::Nan {
                         res.push(cur_cmd);
+                        reset = true;
+                    }
+
+                    if reset {
                         cur_cmd = Command::default();
-                        mem = Memory::defaul();
+                        mem = Memory::default();
+                        reset = false;
                     }
                     cur_cmd.instruction = Instruction::from(*item);
                     match cur_cmd.instruction {
                         Instruction::Mov(m) => match m {
-                            MovVariant::AccToMem | MovVariant::MemToAcc => {
+                            MovVariant::AccToMem => {
                                 w = (item & 0b00000001) == 0b00000001;
                                 state = CmdParsingState::Lo;
+                                cur_cmd.source = Storage::Reg(Register::AX);
+                            }
+                            MovVariant::MemToAcc => {
+                                w = (item & 0b00000001) == 0b00000001;
+                                state = CmdParsingState::Lo;
+                                cur_cmd.destination = Storage::Reg(Register::AX);
                             }
                             MovVariant::ToFromReg => {
                                 d = (item & 0b00000010) == 0b00000010;
@@ -200,7 +212,13 @@ impl Command {
                                 Mode::Mem8BitDisplacement
                                 | Mode::Mem16BitDisplacement
                                 | Mode::MemNoDisplacement => {
-                                    mem = Command::get_mem_registers(*item, mode);
+                                    match Command::get_mem_registers(*item, mode) {
+                                        Some(v) => mem = v,
+                                        None => {
+                                            state = CmdParsingState::First;
+                                            reset = true;
+                                        }
+                                    }
                                     state = CmdParsingState::Hi;
                                     Storage::Mem(mem)
                                 }
@@ -223,7 +241,13 @@ impl Command {
                                 Mode::Mem8BitDisplacement
                                 | Mode::Mem16BitDisplacement
                                 | Mode::MemNoDisplacement => {
-                                    mem = Command::get_mem_registers(*item, mode);
+                                    match Command::get_mem_registers(*item, mode) {
+                                        Some(v) => mem = v,
+                                        None => {
+                                            state = CmdParsingState::First;
+                                            reset = true;
+                                        }
+                                    }
                                     state = CmdParsingState::Hi;
                                     Storage::Mem(mem)
                                 }
@@ -248,17 +272,57 @@ impl Command {
                         MovVariant::MemToAcc | MovVariant::AccToMem => {
                             mem = Memory {
                                 registers: None,
-                                displacements: Some((item, None)),
+                                displacements: Some((*item, None)),
                             };
-                            mem
+                            state = CmdParsingState::Hi;
                         }
-                        MovVariant::ToFromReg => {}
-                        MovVariant::ImmediateToStorage => {}
+                        MovVariant::ToFromReg => {
+
+                            match mode {
+                                Mode::MemNoDisplacement => {
+                                   if mem.registers.is_none() {
+                                        mem.displacements = Some((*item, None));
+                                        state = CmdParsingState::Lo;
+                                   } else {
+                                        state = CmdParsingState::First;
+                                    }
+                                },
+                                    Mode::Mem8BitDisplacement => ,
+                                Mode::Mem16BitDisplacement =>,
+                                    Mode::Reg => {
+                                    println!("You shouldn't come in here");
+                                    reset = true;
+                                }
+                            }
+
+                            state = if w {
+                                CmdParsingState::Hi
+                            } else {
+                                match mode {
+
+                                    }
+                                if d {
+                                    cur_cmd.
+                                }
+                                CmdParsingState::First
+                            };
+                        }
+                        MovVariant::ImmediateToStorage => {
+                            mem = Memory {
+                                registers: None,
+                                displacements: Some((*item, None)),
+                            };
+                            state = if w {
+                                CmdParsingState::Hi
+                            } else {
+                                CmdParsingState::Data8
+                            };
+                        }
                         _ => {}
                     },
                     Instruction::Nan => {
                         println!("Invalid instruction found");
-                        return Vec::default;
+                        return Vec::default();
                     }
                 },
             }
